@@ -1,7 +1,6 @@
 
 package br.edu.fiap.cartoes.entity;
 
-import br.edu.fiap.cartoes.exception.EtapaNaoImplementadaException;
 import br.edu.fiap.cartoes.exception.RegraNegocioException;
 import jakarta.persistence.*;
 import java.time.Instant;
@@ -57,13 +56,14 @@ public class SolicitacaoCartao {
         this.status = StatusSolicitacao.CANCELADA;
     }
 
-    /**
-     * Emissão será implementada na próxima etapa.
-     */
     public void marcarEmitida() {
-        throw new EtapaNaoImplementadaException(
-                "SolicitacaoCartao.marcarEmitida"
-        );
+        if (status != StatusSolicitacao.PENDENTE) {
+            throw new RegraNegocioException(
+                    "Somente solicitações pendentes podem ser emitidas."
+            );
+        }
+
+        this.status = StatusSolicitacao.EMITIDA;
     }
 
     // Getters e setters originais

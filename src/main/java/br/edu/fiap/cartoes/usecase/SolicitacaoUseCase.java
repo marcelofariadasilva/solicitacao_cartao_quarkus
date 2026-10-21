@@ -3,13 +3,14 @@ package br.edu.fiap.cartoes.usecase;
 import br.edu.fiap.cartoes.dto.CartaoResponse;
 import br.edu.fiap.cartoes.dto.SolicitacaoRequest;
 import br.edu.fiap.cartoes.dto.SolicitacaoResponse;
+import br.edu.fiap.cartoes.entity.Cartao;
 import br.edu.fiap.cartoes.entity.SolicitacaoCartao;
 import br.edu.fiap.cartoes.entity.StatusSolicitacao;
 import br.edu.fiap.cartoes.entity.TipoCartao;
 import br.edu.fiap.cartoes.entity.Usuario;
 import br.edu.fiap.cartoes.exception.RegraNegocioException; // ⚠️ nome da exceção 409
-import br.edu.fiap.cartoes.exception.EtapaNaoImplementadaException;
 import br.edu.fiap.cartoes.exception.RecursoNaoEncontradoException;
+import br.edu.fiap.cartoes.repository.CartaoRepository;
 import br.edu.fiap.cartoes.repository.SolicitacaoCartaoRepository;
 import br.edu.fiap.cartoes.repository.TipoCartaoRepository;
 import br.edu.fiap.cartoes.repository.UsuarioRepository;
@@ -25,14 +26,17 @@ public class SolicitacaoUseCase {
     private final SolicitacaoCartaoRepository solicitacaoRepository;
     private final TipoCartaoRepository tipoCartaoRepository;
     private final UsuarioRepository usuarioRepository;
+    private final CartaoRepository cartaoRepository;
 
     @Inject
     public SolicitacaoUseCase(SolicitacaoCartaoRepository solicitacaoRepository,
                               TipoCartaoRepository tipoCartaoRepository,
-                              UsuarioRepository usuarioRepository) {
+                              UsuarioRepository usuarioRepository,
+                              CartaoRepository cartaoRepository) {
         this.solicitacaoRepository = solicitacaoRepository;
         this.tipoCartaoRepository = tipoCartaoRepository;
         this.usuarioRepository = usuarioRepository;
+        this.cartaoRepository = cartaoRepository;
     }
 
     /** Buscar titular e tipo por JPA; tipo indisponível ou pedido pendente duplicado gera 409. */
@@ -90,9 +94,28 @@ public class SolicitacaoUseCase {
         return paraResponse(solicitacao);
     }
 
-    /** Item 9 — responsabilidade de outro colega. */
+    @Transactional
     public CartaoResponse emitir(Long usuarioId, Long id) {
-        throw new EtapaNaoImplementadaException("SolicitacaoUseCase.emitir");
+        SolicitacaoCartao solicitacao = buscarDoTitular(usuarioId, id);
+
+        if (cartaoRepository.buscarPorSolicitacaoId(solicitacao.getId()).isPresent()) {
+            throw new RegraNegocioException("Solicitação já emitida");
+        }
+
+        solicitacao.marcarEmitida();
+        solicitacaoRepository.salvar(solicitacao);
+
+        Cartao cartao = new Cartao(solicitacao);
+        cartaoRepository.salvar(cartao);
+
+        return new CartaoResponse(
+                cartao.getId(),
+                solicitacao.getId(),
+                solicitacao.getTipoCartao().getId(),
+                solicitacao.getTipoCartao().getNome(),
+                cartao.getEmitidoEm(),
+                cartao.getStatus()
+        );
     }
 
     // ---------- auxiliares ----------
